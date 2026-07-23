@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: cleancut-engine
+    runtime: docker
+    plan: free
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false        # you paste this in the Render dashboard
+      - key: CLEANCUT_ALLOW_ORIGINS
+        value: "*"

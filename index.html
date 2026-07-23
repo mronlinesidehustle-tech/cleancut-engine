@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CleanCut</title>
+<style>
+  :root {
+    --bg: #f6f4ef; --card: #ffffff; --ink: #1f2a24; --sub: #66716a;
+    --accent: #1e6f50; --accent-ink: #ffffff; --line: #e3ded4; --bad: #b3402e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#151a17; --card:#1f2620; --ink:#eef2ee; --sub:#98a39b;
+            --accent:#3ba97c; --accent-ink:#0c1410; --line:#2e372f; --bad:#e07a63; }
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--bg); color: var(--ink); min-height: 100dvh;
+         font: 16px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif;
+         display: flex; justify-content: center; padding: 24px 16px; }
+  main { width: 100%; max-width: 430px; }
+  h1 { font-size: 28px; letter-spacing: -0.5px; }
+  h1 span { color: var(--accent); }
+  .tag { color: var(--sub); margin: 4px 0 24px; font-size: 15px; }
+  .card { background: var(--card); border: 1px solid var(--line);
+          border-radius: 16px; padding: 20px; margin-bottom: 16px; }
+  .drop { border: 2px dashed var(--line); border-radius: 12px; padding: 28px 16px;
+          text-align: center; color: var(--sub); cursor: pointer; }
+  .drop.hasfile { border-color: var(--accent); color: var(--ink); }
+  .or { text-align: center; color: var(--sub); font-size: 13px; margin: 10px 0; }
+  .linkin { width: 100%; padding: 13px 14px; border-radius: 10px; font-size: 15px;
+            border: 1px solid var(--line); background: transparent;
+            color: var(--ink); }
+  .linkin:focus { outline: 2px solid var(--accent); border-color: transparent; }
+  .modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+           margin-top: 16px; }
+  .modes button { padding: 12px 4px; border-radius: 10px; font-size: 15px;
+      border: 1px solid var(--line); background: transparent; color: var(--ink);
+      cursor: pointer; }
+  .modes button.sel { background: var(--accent); color: var(--accent-ink);
+      border-color: var(--accent); font-weight: 600; }
+  .modes .resetbtn { color: var(--bad); border-color: var(--line); }
+  .go { width: 100%; margin-top: 16px; padding: 15px; border-radius: 12px;
+        border: 0; background: var(--accent); color: var(--accent-ink);
+        font-size: 17px; font-weight: 700; cursor: pointer; }
+  .go:disabled { opacity: 0.45; }
+  .status { text-align: center; color: var(--sub); min-height: 24px;
+            margin-top: 14px; }
+  .flags { margin-top: 10px; font-size: 14px; }
+  .flags li { display: flex; justify-content: space-between; padding: 6px 0;
+              border-bottom: 1px solid var(--line); list-style: none; }
+  .flags .w { color: var(--bad); font-weight: 600; }
+  a.dl { display: block; text-align: center; margin-top: 14px; padding: 15px;
+         border-radius: 12px; background: var(--accent); color: var(--accent-ink);
+         font-weight: 700; text-decoration: none; }
+  .hide { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Clean<span>Cut</span></h1>
+  <p class="tag">Pick a video or audio file. Get it back without the language.</p>
+
+  <div class="card">
+    <div class="drop" id="drop">Tap to choose a file</div>
+    <input type="file" id="file" accept="video/*,audio/*" class="hide">
+    <div class="or">or</div>
+    <input type="url" id="link" class="linkin" placeholder="Paste a link (Drive, YouTube, TikTok…)" inputmode="url" autocapitalize="off" autocorrect="off">
+    <div class="modes">
+      <button data-m="silence" class="sel">Silence</button>
+      <button data-m="beep">Beep</button>
+      <button id="reset" class="resetbtn">Reset</button>
+    </div>
+    <button class="go" id="go" disabled>Clean it</button>
+    <div class="status" id="status"></div>
+  </div>
+
+  <div class="card hide" id="result">
+    <strong id="summary"></strong>
+    <ul class="flags" id="flags"></ul>
+    <a class="dl" id="dl" href="#">Save clean file</a>
+  </div>
+</main>
+<script>
+  const drop = document.getElementById("drop"), fileIn = document.getElementById("file"),
+        go = document.getElementById("go"), statusEl = document.getElementById("status"),
+        result = document.getElementById("result"), linkIn = document.getElementById("link");
+  let mode = "silence";
+  const API = (window.CLEANCUT_API || "").replace(/\/$/, "");
+  drop.onclick = () => fileIn.click();
+  fileIn.onchange = () => {
+    if (fileIn.files[0]) {
+      drop.textContent = fileIn.files[0].name;
+      drop.classList.add("hasfile");
+      linkIn.value = "";
+      go.disabled = false;
+      result.classList.add("hide");
+      statusEl.textContent = "";
+    }
+  };
+  linkIn.oninput = () => {
+    if (linkIn.value.trim()) {
+      fileIn.value = "";
+      drop.textContent = "Tap to choose a file";
+      drop.classList.remove("hasfile");
+    }
+    go.disabled = !linkIn.value.trim() && !fileIn.files[0];
+  };
+  document.querySelectorAll(".modes button[data-m]").forEach(b => b.onclick = () => {
+    document.querySelectorAll(".modes button[data-m]").forEach(x => x.classList.remove("sel"));
+    b.classList.add("sel"); mode = b.dataset.m;
+  });
+  document.getElementById("reset").onclick = () => {
+    fileIn.value = "";
+    linkIn.value = "";
+    drop.textContent = "Tap to choose a file";
+    drop.classList.remove("hasfile");
+    statusEl.textContent = "";
+    result.classList.add("hide");
+    go.disabled = true;
+  };
+  go.onclick = async () => {
+    go.disabled = true;
+    result.classList.add("hide");
+    statusEl.textContent = "Uploading…";
+    const fd = new FormData();
+    if (fileIn.files[0]) fd.append("file", fileIn.files[0]);
+    else fd.append("url", linkIn.value.trim());
+    fd.append("mode", mode);
+    statusEl.textContent = fileIn.files[0] ? "Uploading…" : "Fetching link…";
+    try {
+      const r = await fetch(API + "/jobs", { method: "POST", body: fd });
+      const { id, error } = await r.json();
+      if (error) throw new Error(error);
+      poll(id);
+    } catch (e) { fail(e); }
+  };
+  function fail(e) {
+    statusEl.textContent = "Something went wrong: " + e.message;
+    go.disabled = false;
+  }
+  async function poll(id) {
+    try {
+      const j = await (await fetch(API + "/jobs/" + id)).json();
+      if (j.status === "error") return fail(new Error(j.error || "processing failed"));
+      if (j.status !== "done") {
+        statusEl.textContent = j.status[0].toUpperCase() + j.status.slice(1) + "…";
+        return setTimeout(() => poll(id), 1500);
+      }
+      statusEl.textContent = "";
+      const n = j.flagged.length;
+      document.getElementById("summary").textContent =
+        n ? `Cleaned ${n} word${n === 1 ? "" : "s"}` : "No foul language found";
+      const ul = document.getElementById("flags");
+      ul.innerHTML = "";
+      j.flagged.forEach(f => {
+        const li = document.createElement("li");
+        const w = document.createElement("span"); w.className = "w";
+        w.textContent = f.word;
+        const t = document.createElement("span");
+        t.textContent = Math.floor(f.start / 60) + ":" +
+          String(Math.floor(f.start % 60)).padStart(2, "0");
+        li.append(w, t); ul.append(li);
+      });
+      document.getElementById("dl").href = API + "/jobs/" + id + "/download";
+      result.classList.remove("hide");
+      go.disabled = false;
+    } catch (e) { fail(e); }
+  }
+</script>
+</body>
+</html>
