@@ -130,6 +130,40 @@ def flag_words(words, singles, phrases):
             spans.append([s, e])
     return flagged, spans
 
+
+def merge_spans(spans):
+    """Union overlapping [start, end] ranges (already padded)."""
+    out = []
+    for s, e in sorted(spans):
+        if out and s <= out[-1][1]:
+            out[-1][1] = max(out[-1][1], e)
+        else:
+            out.append([s, e])
+    return out
+
+
+def detect(audio_path: Path, tier: int = 1):
+    """Transcribe and flag foul language. On the Groq path this runs a
+    double-check pass (two transcriptions) and takes the union of what each
+    catches - AI transcription randomly drops a swear on any single pass, so a
+    second pass closes most of those gaps. Returns (flagged, spans)."""
+    singles, phrases = load_wordlist(tier)
+    passes = 2 if os.environ.get("GROQ_API_KEY") else 1
+    all_flagged, all_spans = [], []
+    for _ in range(passes):
+        words = transcribe(audio_path)
+        fl, sp = flag_words(words, singles, phrases)
+        all_flagged.extend(fl)
+        all_spans.extend(sp)
+    # dedupe the flagged list (for the review screen) by time + word
+    seen, flagged = set(), []
+    for f in sorted(all_flagged, key=lambda x: x["start"]):
+        k = (round(f["start"], 1), f["word"].strip().lower())
+        if k not in seen:
+            seen.add(k)
+            flagged.append(f)
+    return flagged, merge_spans(all_spans)
+
 def run(cmd):
     r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode != 0:
@@ -211,16 +245,13 @@ def main():
     wav = args.input.with_suffix(".cleancut-tmp.wav")
     run(["ffmpeg", "-y", "-i", str(args.input), "-ac", "1", "-ar", "16000",
          str(wav)])
-    print("Transcribing (faster-whisper small, local)...")
-    words = transcribe(wav)
+    print("Transcribing...")
+    flagged, spans = detect(wav, args.tier)
     wav.unlink(missing_ok=True)
 
-    singles, phrases = load_wordlist(args.tier)
-    flagged, spans = flag_words(words, singles, phrases)
-    print(f"Words transcribed: {len(words)} | flagged: {len(flagged)} | "
-          f"censor spans: {len(spans)}")
+    print(f"Flagged: {len(flagged)} | censor spans: {len(spans)}")
     for f in flagged:
-        print(f"  {f['start']:6.2f}s  {f['word'].strip()!r}  (match: {f['match']})")
+        print(f"  {f['start']:6.2f}s  {f['word'].strip()!r}  (match: {f.get('match','')})")
 
     render(args.input, out, spans, args.mode, video)
     report = {"input": str(args.input), "mode": args.mode, "tier": args.tier,

@@ -70,12 +70,10 @@ def process(job_id: str, inp: Optional[Path], mode: str, tier: int,
         pipeline.run(["ffmpeg", "-y", "-i", str(inp), "-ac", "1", "-ar",
                       "16000", str(wav)])
         job["status"] = "transcribing"
-        with _model_lock:  # one Whisper run at a time on this box
-            words = pipeline.transcribe(wav)
+        with _model_lock:  # serialize heavy work on a small instance
+            flagged, spans = pipeline.detect(wav, tier)  # double-check pass
         wav.unlink(missing_ok=True)
         job["status"] = "detecting"
-        singles, phrases = pipeline.load_wordlist(tier)
-        flagged, spans = pipeline.flag_words(words, singles, phrases)
         job["flagged"] = [{"word": f["word"].strip(), "start": round(f["start"], 2)}
                           for f in flagged]
         job["status"] = "rendering"
