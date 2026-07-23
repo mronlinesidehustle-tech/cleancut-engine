@@ -68,10 +68,16 @@ def transcribe_groq(audio_path: Path, key: str):
     import urllib.request
     import urllib.error
 
+    # Whisper tends to "clean up" profanity out of its transcript; this prompt
+    # biases it to transcribe swear words verbatim so they can be censored.
+    prime = ("Transcribe explicit content verbatim, including profanity and "
+             "swear words like fuck, fucking, shit, ass, damn, bitch. Do not "
+             "censor or omit any words.")
     boundary = "----cleancutboundary"
     parts = []
     for name, value in (("model", "whisper-large-v3"),
                         ("response_format", "verbose_json"),
+                        ("prompt", prime),
                         ("timestamp_granularities[]", "word")):
         parts.append(
             f"--{boundary}\r\nContent-Disposition: form-data; "
